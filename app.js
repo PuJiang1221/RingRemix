@@ -774,6 +774,67 @@ function drawSpinGhosts(cx, cy, radius, time, transient) {
   }
 }
 
+function motionStrength(transient) {
+  return (state.playing ? 1 : 0.22) * (0.78 + transient * 0.34 + Math.abs(state.jog) * 0.18);
+}
+
+function floatingCenter(cx, cy, radius, time, index, amount, phase = 0) {
+  const motion = state.playing ? 1 : 0.18;
+  const slow = time * (0.23 + (index % 5) * 0.014) + phase + index * 0.73;
+  const fast = time * (0.67 + (index % 4) * 0.026) + phase * 1.7 + index * 1.31;
+  return {
+    x: cx + Math.sin(slow) * radius * amount * motion + Math.sin(fast) * radius * amount * 0.34 * motion,
+    y: cy + Math.cos(slow * 0.92) * radius * amount * 0.78 * motion + Math.cos(fast * 0.81) * radius * amount * 0.24 * motion,
+  };
+}
+
+function dynamicDepth(index, time, seed = 0) {
+  return Math.sin(time * 0.42 + index * 1.19 + seed) + Math.cos(time * 0.27 + index * 0.53) * 0.6;
+}
+
+function drawCompositionOccluders(cx, cy, radius, time, transient, motion) {
+  const count = 7;
+  for (let i = 0; i < count; i += 1) {
+    const center = floatingCenter(cx, cy, radius, time, i, 0.018 + (i % 3) * 0.006, i * 0.91);
+    const phase = time * (0.3 + i * 0.025) + i * 1.27;
+    const start = i * 0.88 + Math.sin(phase) * 0.22 + state.baseRotation * (0.08 + i * 0.006);
+    const span = 0.16 + (i % 4) * 0.08 + Math.sin(phase * 0.7) * 0.035;
+    const inner = radius * (0.26 + (i % 5) * 0.09 + Math.sin(phase) * 0.018);
+    const outer = inner + radius * (0.1 + (i % 3) * 0.06 + transient * 0.04 + motion * 0.018);
+    drawArcBand(center.x, center.y, inner, outer, start, start + span, `rgba(0, 0, 0, ${0.48 + motion * 0.18})`);
+
+    if (i % 2 === 0) {
+      drawArcBand(
+        center.x,
+        center.y,
+        outer * 0.96,
+        outer * (1.02 + motion * 0.02),
+        start + span * 0.18,
+        start + span * 0.78,
+        `rgba(243, 240, 232, ${0.1 + motion * 0.08})`,
+      );
+    }
+  }
+}
+
+function drawForegroundSlices(cx, cy, radius, time, transient, motion) {
+  for (let i = 0; i < 8; i += 1) {
+    const center = floatingCenter(cx, cy, radius, time, i + 17, 0.024 + (i % 2) * 0.008, i * 0.61);
+    const phase = time * (0.34 + i * 0.035) + i * 1.8;
+    const angle = i * 0.77 + Math.sin(phase) * 0.18 + state.baseRotation * 0.16;
+    const inner = radius * (0.46 + (i % 4) * 0.08 + Math.sin(phase * 0.8) * 0.026);
+    const outer = radius * (0.64 + (i % 5) * 0.072 + Math.cos(phase) * 0.03 + transient * 0.08);
+    const span = 0.055 + (i % 3) * 0.04 + motion * 0.04;
+    const fill =
+      i % 5 === 0
+        ? solidAccent(colors.orange, 0.66)
+        : i % 5 === 2
+          ? solidAccent(colors.aqua, 0.62)
+          : `rgba(243, 240, 232, ${0.22 + motion * 0.18})`;
+    drawArcBand(center.x, center.y, inner, outer, angle - span, angle + span * 1.6, fill);
+  }
+}
+
 function drawVisualization() {
   const rect = canvas.getBoundingClientRect();
   const width = rect.width;
@@ -793,6 +854,7 @@ function drawVisualization() {
   const hat = ageSince(state.lastHat, 95);
   const bassPulse = ageSince(state.lastBass, 220);
   const transient = Math.min(1, kick * 0.54 + snare * 0.28 + hat * 0.16 + bassPulse * 0.34);
+  const motion = motionStrength(transient);
   const breath =
     1 +
     Math.sin(time * 1.1 + state.transportStep * 0.015) * 0.026 +
@@ -833,11 +895,13 @@ function drawVisualization() {
     ctx.stroke();
   }
 
-  drawFoundationBlocks(cx, cy, radius, time, breath, transient, layerMotion.foundation);
-  drawBassLayer(cx, cy, radius, kick, bassPulse, breath, transient, layerMotion.bass);
-  drawChordLayer(cx, cy, radius, time, breath, transient, layerMotion.chord);
-  drawLeadLayer(cx, cy, radius, time, breath, transient, layerMotion.lead);
-  drawDrumLayer(cx, cy, radius, kick, snare, hat, breath, transient, layerMotion.drum);
+  drawFoundationBlocks(cx, cy, radius, time, breath, transient, layerMotion.foundation, motion);
+  drawBassLayer(cx, cy, radius, kick, bassPulse, breath, transient, layerMotion.bass, motion);
+  drawCompositionOccluders(cx, cy, radius, time, transient, motion);
+  drawChordLayer(cx, cy, radius, time, breath, transient, layerMotion.chord, motion);
+  drawLeadLayer(cx, cy, radius, time, breath, transient, layerMotion.lead, motion);
+  drawDrumLayer(cx, cy, radius, kick, snare, hat, breath, transient, layerMotion.drum, motion);
+  drawForegroundSlices(cx, cy, radius, time, transient, motion);
   drawKandinskyLayer(cx, cy, radius, time, breath, transient);
   drawFilterLayer(cx, cy, radius, filterAmount, layerMotion.filter);
   drawLoopLayer(cx, cy, radius, layerMotion.loop);
@@ -855,101 +919,129 @@ function drawVisualization() {
   animationId = requestAnimationFrame(drawVisualization);
 }
 
-function drawFoundationBlocks(cx, cy, radius, time, breath, transient, rotationOffset) {
-  greyBlocks.forEach((block, index) => {
+function drawFoundationBlocks(cx, cy, radius, time, breath, transient, rotationOffset, motion) {
+  const orderedBlocks = greyBlocks
+    .map((block, index) => ({ block, index, depth: dynamicDepth(index, time, block.phase) }))
+    .sort((a, b) => a.depth - b.depth);
+
+  orderedBlocks.forEach(({ block, index, depth }) => {
+    const center = floatingCenter(cx, cy, radius, time, index, 0.014 + block.alpha * 0.12, block.phase);
+    const layerRadius = radius * (1 + Math.sin(time * 0.26 + index * 0.93) * 0.018 * motion + depth * 0.006 * motion);
     const localBreath = breath + Math.sin(time * 0.58 + block.phase) * 0.018;
-    const radialStretch = 1 + Math.sin(time * 1.15 + block.phase + index * 0.4) * 0.038 + transient * (0.04 + (index % 3) * 0.018);
+    const radialStretch =
+      1 + Math.sin(time * 1.15 + block.phase + index * 0.4) * (0.038 + motion * 0.026) + transient * (0.04 + (index % 3) * 0.018);
     const shake = transient * (0.008 + (index % 4) * 0.004);
-    const drift = Math.sin(time * 0.35 + index * 1.8) * 0.018 + shake;
+    const drift = Math.sin(time * 0.35 + index * 1.8) * (0.018 + motion * 0.014) + shake + depth * 0.004 * motion;
     const start = (block.start + drift) * Math.PI * 2 + rotationOffset;
-    const end = (block.start + block.span + drift * 0.58 + transient * 0.018) * Math.PI * 2 + rotationOffset;
-    const inner = radius * (block.inner * (localBreath - 0.02) - transient * 0.026);
-    const outer = radius * (block.outer * localBreath * radialStretch + Math.sin(time * 0.5 + index) * 0.028 + transient * 0.07);
-    drawArcBand(cx, cy, inner, outer, start, end, `rgba(243, 240, 232, ${0.09 + block.alpha * 1.05})`);
+    const spanWarp = 1 + Math.sin(time * 0.31 + index * 1.13) * 0.18 * motion + transient * 0.08;
+    const end = (block.start + block.span * spanWarp + drift * 0.58 + transient * 0.018) * Math.PI * 2 + rotationOffset;
+    const inner = layerRadius * (block.inner * (localBreath - 0.02) - transient * 0.026 - depth * 0.006 * motion);
+    const outer = layerRadius * (block.outer * localBreath * radialStretch + Math.sin(time * 0.5 + index) * 0.028 + transient * 0.07 + depth * 0.012 * motion);
+    drawArcBand(center.x, center.y, inner, outer, start, end, `rgba(243, 240, 232, ${0.09 + block.alpha * 1.05 + motion * 0.02})`);
 
     if (index % 2 === 0) {
       const capStart = start + (end - start) * 0.64;
-      drawArcBand(cx, cy, outer * 0.93, outer * 1.03, capStart, end + 0.045, "rgba(243, 240, 232, 0.18)");
+      drawArcBand(center.x, center.y, outer * 0.93, outer * 1.03, capStart, end + 0.045, "rgba(243, 240, 232, 0.18)");
     }
   });
 }
 
-function drawBassLayer(cx, cy, radius, kick, bassPulse, breath, transient, rotationOffset) {
-  irregularSegments.forEach((segment, index) => {
+function drawBassLayer(cx, cy, radius, kick, bassPulse, breath, transient, rotationOffset, motion) {
+  const orderedSegments = irregularSegments
+    .map((segment, index) => ({
+      segment,
+      index,
+      depth: dynamicDepth(index, performance.now() * 0.001, segment.start * 8) + segment.lift * 1.4,
+    }))
+    .sort((a, b) => a.depth - b.depth);
+
+  orderedSegments.forEach(({ segment, index, depth }) => {
+    const time = performance.now() * 0.001;
+    const center = floatingCenter(cx, cy, radius, time, index + 4, 0.018 + segment.lift * 0.045, segment.start * 9);
+    const layerRadius =
+      radius * (1 + Math.sin(time * 0.33 + index * 0.71) * 0.024 * motion + Math.sin(time * 0.19 + index) * 0.018 * motion + depth * 0.007 * motion);
     const beatHit = index === state.currentStep % irregularSegments.length ? kick * 0.13 : 0;
     const energy = 0.5 + Math.sin(index * 1.9 + state.transportStep * 0.27) * 0.22;
-    const localBreath = breath + Math.sin(index * 0.94 + performance.now() * 0.0011) * 0.02;
+    const localBreath = breath + Math.sin(index * 0.94 + time * 1.1) * (0.02 + motion * 0.018);
     const radialStretch =
-      1 + Math.sin(performance.now() * 0.00145 + index * 0.82) * 0.045 + bassPulse * 0.055 + transient * segment.shake * 0.035;
+      1 + Math.sin(time * 1.45 + index * 0.82) * (0.045 + motion * 0.04) + bassPulse * 0.055 + transient * segment.shake * 0.035;
     const jitter = transient * segment.shake * 0.012;
-    const inner = radius * (segment.inner * (localBreath - 0.035) + bassPulse * 0.006 - jitter - transient * 0.016);
+    const inner = layerRadius * (segment.inner * (localBreath - 0.035) + bassPulse * 0.006 - jitter - transient * 0.016 - depth * 0.007 * motion);
     const outer =
-      radius *
-      (segment.outer * localBreath * radialStretch + segment.lift * state.volumes.bass + energy * 0.028 + beatHit + transient * segment.shake * 0.055);
-    const start = (segment.start + Math.sin(index * 2.7 + state.transportStep * 0.04) * 0.003 + jitter) * Math.PI * 2 + 0.01 + rotationOffset;
-    const end = (segment.start + segment.span + beatHit * 0.1 + transient * 0.006 * segment.shake) * Math.PI * 2 - 0.012 + rotationOffset;
+      layerRadius *
+      (segment.outer * localBreath * radialStretch + segment.lift * state.volumes.bass + energy * 0.028 + beatHit + transient * segment.shake * 0.055 + depth * 0.015 * motion);
+    const start =
+      (segment.start + Math.sin(index * 2.7 + state.transportStep * 0.04) * (0.003 + motion * 0.008) + jitter + depth * 0.006 * motion) * Math.PI * 2 +
+      0.01 +
+      rotationOffset;
+    const spanWarp = 1 + Math.sin(time * 0.38 + index * 1.4) * 0.24 * motion + bassPulse * 0.1;
+    const end = (segment.start + segment.span * spanWarp + beatHit * 0.1 + transient * 0.006 * segment.shake) * Math.PI * 2 - 0.012 + rotationOffset;
     const alpha = 0.16 + segment.tone * 0.34 + state.volumes.bass * 0.22;
     const fill = index % 3 === 1 ? `rgba(243, 240, 232, ${alpha * 0.78})` : `rgba(184, 180, 170, ${alpha})`;
-    drawArcBand(cx, cy, inner, outer, start, end, fill);
+    drawArcBand(center.x, center.y, inner, outer, start, end, fill);
 
     if (index % 2 === 0) {
       const cut = start + (end - start) * 0.55;
-      drawArcBand(cx, cy, inner * 0.91, inner * 1.1, cut, end + 0.025 + transient * 0.02, "rgba(2, 2, 3, 0.82)");
+      drawArcBand(center.x, center.y, inner * 0.91, inner * 1.1, cut, end + 0.025 + transient * 0.02, "rgba(2, 2, 3, 0.82)");
     }
 
     if (index % 5 === 1) {
       const spikeAngle = end + 0.035;
-      drawRadialLine(cx, cy, spikeAngle, outer * 0.84, outer + radius * (0.05 + segment.shake * 0.035), "rgba(243, 240, 232, 0.62)", 2);
+      drawRadialLine(center.x, center.y, spikeAngle, outer * 0.84, outer + radius * (0.05 + segment.shake * 0.035), "rgba(243, 240, 232, 0.62)", 2);
     }
   });
 }
 
-function drawChordLayer(cx, cy, radius, time, breath, transient, rotationOffset) {
+function drawChordLayer(cx, cy, radius, time, breath, transient, rotationOffset, motion) {
   ctx.lineCap = "butt";
   const volume = state.volumes.chords;
   const alpha = clamp(0.2 + volume * 0.62, 0.15, 0.95);
   const chordColors = [colors.aqua, colors.violet, colors.orange];
 
   for (let i = 0; i < 9; i += 1) {
+    const center = floatingCenter(cx, cy, radius, time, i + 31, 0.016 + volume * 0.014, i * 0.44);
+    const layerRadius = radius * (1 + Math.sin(time * 0.24 + i * 0.9) * 0.024 * motion);
     const phase = time * (0.52 + i * 0.025) + i * 0.88;
-    const start = i * 0.68 + Math.sin(phase) * 0.12 + rotationOffset;
-    const span = 0.42 + (i % 3) * 0.18 + Math.sin(time * 0.7 + i) * 0.1 + transient * 0.18;
-    const inner = radius * ((0.31 + (i % 3) * 0.055) * breath + Math.sin(phase * 0.8) * 0.014);
-    const outer = inner + radius * (0.035 + volume * 0.066 + transient * 0.04);
+    const start = i * 0.68 + Math.sin(phase) * (0.12 + motion * 0.06) + rotationOffset;
+    const span = 0.42 + (i % 3) * 0.18 + Math.sin(time * 0.7 + i) * (0.1 + motion * 0.09) + transient * 0.18;
+    const inner = layerRadius * ((0.31 + (i % 3) * 0.055) * breath + Math.sin(phase * 0.8) * (0.014 + motion * 0.014));
+    const outer = inner + layerRadius * (0.035 + volume * 0.066 + transient * 0.04 + motion * 0.012);
     const fill = i % 4 === 0 ? chordColors[i % chordColors.length] : colors.white;
-    drawArcBand(cx, cy, inner, outer, start, start + span, solidAccent(fill, i % 4 === 0 ? alpha : 0.2 + volume * 0.24));
+    drawArcBand(center.x, center.y, inner, outer, start, start + span, solidAccent(fill, i % 4 === 0 ? alpha : 0.2 + volume * 0.24));
   }
 
   for (let i = 0; i < 28; i += 1) {
+    const center = floatingCenter(cx, cy, radius, time, i + 43, 0.009 + (i % 4) * 0.002, i * 0.31);
     const uneven = i % 4 === 0 ? 0.07 : i % 5 === 0 ? -0.035 : 0;
     const r =
       radius *
-      ((0.27 + i * 0.018 + uneven) * (breath + Math.sin(time * 0.92 + i) * 0.032) + transient * (0.02 + (i % 3) * 0.01));
-    const start = time * 0.2 + i * 0.43 + (i % 3) * 0.21 + transient * 0.1 + rotationOffset;
-    const span = 0.22 + Math.sin(time * 0.72 + i) * 0.2 + (i % 5 === 0 ? 0.72 : 0) + (i % 7 === 0 ? 0.38 : 0) + transient * 0.1;
+      ((0.27 + i * 0.018 + uneven) * (breath + Math.sin(time * 0.92 + i) * (0.032 + motion * 0.018)) + transient * (0.02 + (i % 3) * 0.01));
+    const start = time * (0.2 + motion * 0.06) + i * 0.43 + (i % 3) * 0.21 + transient * 0.1 + rotationOffset;
+    const span = 0.22 + Math.sin(time * 0.72 + i) * (0.2 + motion * 0.1) + (i % 5 === 0 ? 0.72 : 0) + (i % 7 === 0 ? 0.38 : 0) + transient * 0.1;
     ctx.beginPath();
-    ctx.arc(cx, cy, r, start, start + span);
+    ctx.arc(center.x, center.y, r, start, start + span);
     ctx.strokeStyle = i % 4 === 0 ? solidAccent(colors.aqua, alpha) : `rgba(243, 240, 232, ${0.15 + volume * 0.34})`;
     ctx.lineWidth = i % 4 === 0 ? 3.6 + transient * 2 : 1.2 + volume * 1.2;
     ctx.stroke();
   }
 }
 
-function drawLeadLayer(cx, cy, radius, time, breath, transient, rotationOffset) {
+function drawLeadLayer(cx, cy, radius, time, breath, transient, rotationOffset, motion) {
   const notes = 30;
   const volume = state.volumes.lead;
   for (let i = 0; i < notes; i += 1) {
+    const center = floatingCenter(cx, cy, radius, time, i + 59, 0.01 + volume * 0.01, i * 0.17);
     const angle = i * 1.73 + time * (1.15 + volume * 0.36) + rotationOffset;
     const r =
       radius *
-      ((0.34 + (i % 8) * 0.038 + Math.sin(i * 1.2 + time) * 0.034) * breath + transient * (0.022 + (i % 4) * 0.008));
+      ((0.34 + (i % 8) * 0.038 + Math.sin(i * 1.2 + time) * (0.034 + motion * 0.02)) * breath + transient * (0.022 + (i % 4) * 0.008));
     const pulse = i % 8 === state.currentStep % 8 ? 1 : 0.42;
     const color = i % 3 === 0 ? colors.violet : i % 3 === 1 ? colors.orange : colors.aqua;
-    const p = polarPoint(cx, cy, angle, r);
+    const p = polarPoint(center.x, center.y, angle, r);
     const tail = 0.11 + pulse * 0.14 + transient * 0.06;
 
     ctx.beginPath();
-    ctx.arc(cx, cy, r, angle - tail, angle + tail * 0.34);
+    ctx.arc(center.x, center.y, r, angle - tail, angle + tail * 0.34);
     ctx.strokeStyle = solidAccent(color, 0.34 + volume * 0.52 * pulse);
     ctx.lineWidth = 2 + volume * 3.5 + pulse * 2.2;
     ctx.stroke();
@@ -960,20 +1052,27 @@ function drawLeadLayer(cx, cy, radius, time, breath, transient, rotationOffset) 
     ctx.fill();
 
     if (pulse > 0.9) {
-      drawRadialLine(cx, cy, angle, radius * 0.18, r + radius * 0.16, solidAccent(colors.white, 0.82), 1.8 + volume * 2.2);
-      drawTriangle(cx, cy, angle + 0.08, r + radius * 0.06, radius * (0.02 + volume * 0.012), solidAccent(color, 0.96), 1);
+      drawRadialLine(center.x, center.y, angle, radius * 0.18, r + radius * 0.16, solidAccent(colors.white, 0.82), 1.8 + volume * 2.2);
+      drawTriangle(center.x, center.y, angle + 0.08, r + radius * 0.06, radius * (0.02 + volume * 0.012), solidAccent(color, 0.96), 1);
     }
   }
 }
 
-function drawDrumLayer(cx, cy, radius, kick, snare, hat, breath, transient, rotationOffset) {
-  irregularSegments.forEach((segment, groupIndex) => {
+function drawDrumLayer(cx, cy, radius, kick, snare, hat, breath, transient, rotationOffset, motion) {
+  const orderedSegments = irregularSegments
+    .map((segment, groupIndex) => ({ segment, groupIndex, depth: dynamicDepth(groupIndex, performance.now() * 0.001, segment.span * 12) }))
+    .sort((a, b) => a.depth - b.depth);
+
+  orderedSegments.forEach(({ segment, groupIndex, depth }) => {
+    const time = performance.now() * 0.001;
+    const center = floatingCenter(cx, cy, radius, time, groupIndex + 71, 0.01 + segment.shake * 0.006, segment.span * 6);
+    const layerRadius = radius * (1 + depth * 0.006 * motion + Math.sin(time * 0.29 + groupIndex) * 0.016 * motion);
     const tickCount = 4 + ((groupIndex * 9) % 24);
-    const start = (segment.start + Math.sin(groupIndex * 1.7 + state.transportStep * 0.025) * 0.004) * Math.PI * 2 + rotationOffset;
-    const span = (segment.span + (groupIndex % 4) * 0.01) * Math.PI * 2;
-    const radialStretch = 1 + Math.sin(performance.now() * 0.0017 + groupIndex * 0.55) * 0.04 + transient * segment.shake * 0.035;
-    const inner = radius * ((0.52 + (groupIndex % 4) * 0.038) * (breath - 0.026) - transient * 0.026);
-    const outer = radius * ((0.72 + (groupIndex % 5) * 0.052) * breath * radialStretch + transient * segment.shake * 0.055);
+    const start = (segment.start + Math.sin(groupIndex * 1.7 + state.transportStep * 0.025) * (0.004 + motion * 0.006) + depth * 0.004 * motion) * Math.PI * 2 + rotationOffset;
+    const span = (segment.span + (groupIndex % 4) * 0.01 + Math.sin(time * 0.37 + groupIndex) * 0.02 * motion) * Math.PI * 2;
+    const radialStretch = 1 + Math.sin(time * 1.7 + groupIndex * 0.55) * (0.04 + motion * 0.026) + transient * segment.shake * 0.035;
+    const inner = layerRadius * ((0.52 + (groupIndex % 4) * 0.038) * (breath - 0.026) - transient * 0.026);
+    const outer = layerRadius * ((0.72 + (groupIndex % 5) * 0.052) * breath * radialStretch + transient * segment.shake * 0.055 + depth * 0.012 * motion);
     for (let i = 0; i < tickCount; i += 1) {
       const offset = Math.sin(i * 1.8 + groupIndex) * 0.006 * Math.PI * 2;
       const angle = start + (i / Math.max(1, tickCount - 1)) * span + offset;
@@ -981,7 +1080,7 @@ function drawDrumLayer(cx, cy, radius, kick, snare, hat, breath, transient, rota
       const medium = i % 4 === 0;
       const len = radius * (strong ? 0.13 + kick * 0.09 : medium ? 0.07 + snare * 0.055 : 0.032 + hat * 0.05 + transient * 0.012);
       const alpha = state.volumes.drums * (strong ? 0.86 : medium ? 0.56 : 0.34);
-      drawRadialLine(cx, cy, angle, inner, outer + len, `rgba(243, 240, 232, ${alpha})`, strong ? 2.4 : 1.1);
+      drawRadialLine(center.x, center.y, angle, inner, outer + len, `rgba(243, 240, 232, ${alpha})`, strong ? 2.4 : 1.1);
     }
   });
 }
