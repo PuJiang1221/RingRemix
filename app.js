@@ -870,6 +870,55 @@ function drawDominantRingMasses(cx, cy, radius, time, breath, transient, rotatio
   });
 }
 
+function drawHeroRingBlocks(cx, cy, radius, time, breath, transient, rotationOffset, motion) {
+  const blocks = [
+    {
+      angle: -0.1,
+      span: 0.38,
+      inner: 0.58,
+      thickness: 0.18,
+      alpha: 0.66,
+      phase: 0.4,
+      color: colors.white,
+      offset: 0.018,
+    },
+    {
+      angle: 2.48,
+      span: 0.31,
+      inner: 0.5,
+      thickness: 0.2,
+      alpha: 0.58,
+      phase: 2.1,
+      color: colors.ash,
+      offset: 0.026,
+    },
+  ];
+
+  blocks.forEach((block, index) => {
+    const center = floatingCenter(cx, cy, radius, time, index + 101, block.offset, block.phase);
+    const start = block.angle + rotationOffset + Math.sin(time * 0.24 + block.phase) * 0.08 * motion;
+    const span = block.span + Math.sin(time * 0.19 + block.phase) * 0.045 * motion + transient * 0.035;
+    const localBreath = breath + Math.sin(time * 0.36 + block.phase) * 0.018 * motion;
+    const inner = radius * (block.inner * localBreath + Math.sin(time * 0.21 + block.phase) * 0.018 * motion);
+    const outer = inner + radius * (block.thickness + transient * 0.035 + Math.cos(time * 0.27 + block.phase) * 0.018 * motion);
+    const fill =
+      index === 0
+        ? `rgba(243, 240, 232, ${block.alpha})`
+        : `rgba(184, 180, 170, ${block.alpha})`;
+
+    drawArcBand(center.x, center.y, inner, outer, start, start + span, fill);
+
+    const notchStart = start + span * (index === 0 ? 0.56 : 0.28);
+    drawArcBand(center.x, center.y, inner * 0.96, outer * 1.03, notchStart, notchStart + 0.08 + motion * 0.035, "rgba(0, 0, 0, 0.78)");
+
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, outer * 1.012, start + span * 0.08, start + span * 0.88);
+    ctx.strokeStyle = index === 0 ? "rgba(243, 240, 232, 0.42)" : "rgba(126, 184, 173, 0.42)";
+    ctx.lineWidth = 1.5 + motion * 0.8;
+    ctx.stroke();
+  });
+}
+
 function drawVisualization() {
   const rect = canvas.getBoundingClientRect();
   const width = rect.width;
@@ -933,6 +982,7 @@ function drawVisualization() {
   drawFoundationBlocks(cx, cy, radius, time, breath, transient, layerMotion.foundation, motion);
   drawBassLayer(cx, cy, radius, kick, bassPulse, breath, transient, layerMotion.bass, motion);
   drawDominantRingMasses(cx, cy, radius, time, breath, transient, layerMotion.bass * 0.72, motion);
+  drawHeroRingBlocks(cx, cy, radius, time, breath, transient, layerMotion.bass * 0.54, motion);
   drawCompositionOccluders(cx, cy, radius, time, transient, motion);
   drawChordLayer(cx, cy, radius, time, breath, transient, layerMotion.chord, motion);
   drawLeadLayer(cx, cy, radius, time, breath, transient, layerMotion.lead, motion);
