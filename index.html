@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ring Deck - DJ Circular Visualizer</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="deck-shell">
+      <section class="stage" aria-label="Ring Deck 可视化舞台">
+        <canvas id="visualizer" aria-label="环形 DJ 音乐可视化"></canvas>
+        <div class="stage-label">
+          <p>Ring Deck</p>
+          <span id="statusText">等待播放</span>
+        </div>
+      </section>
+
+      <aside class="mixer" aria-label="DJ 控制台">
+        <div class="mixer-header">
+          <div>
+            <h1>RingRemix</h1>
+            <p>circular DJ visual demo</p>
+          </div>
+          <button id="playButton" class="primary-button" type="button">播放</button>
+        </div>
+
+        <section class="control-group">
+          <div class="group-title">
+            <h2>音轨音量</h2>
+            <span id="selectedTrack">Drums</span>
+          </div>
+          <div class="track-tabs" role="tablist" aria-label="选择音轨">
+            <button class="track-tab active" type="button" data-track="drums">Drums</button>
+            <button class="track-tab" type="button" data-track="bass">Bass</button>
+            <button class="track-tab" type="button" data-track="chords">Chords</button>
+            <button class="track-tab" type="button" data-track="lead">Lead</button>
+          </div>
+          <div class="sliders">
+            <label>
+              <span>Drums</span>
+              <input class="volume-slider" type="range" min="0" max="140" value="100" data-track="drums" />
+            </label>
+            <label>
+              <span>Bass</span>
+              <input class="volume-slider" type="range" min="0" max="140" value="100" data-track="bass" />
+            </label>
+            <label>
+              <span>Chords</span>
+              <input class="volume-slider" type="range" min="0" max="140" value="85" data-track="chords" />
+            </label>
+            <label>
+              <span>Lead</span>
+              <input class="volume-slider" type="range" min="0" max="140" value="90" data-track="lead" />
+            </label>
+          </div>
+        </section>
+
+        <section class="control-grid">
+          <div class="control-group">
+            <div class="group-title">
+              <h2>滤波器</h2>
+              <span id="filterValue">Clean</span>
+            </div>
+            <input id="filterSlider" class="wide-slider" type="range" min="-100" max="100" value="0" />
+            <div class="scale-labels">
+              <span>Low-pass</span>
+              <span>High-pass</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="group-title">
+              <h2>混响</h2>
+              <span id="reverbValue">18%</span>
+            </div>
+            <input id="reverbSlider" class="wide-slider" type="range" min="0" max="80" value="18" />
+          </div>
+        </section>
+
+        <section class="control-group">
+          <div class="group-title">
+            <h2>采样触发</h2>
+            <span>quantized</span>
+          </div>
+          <div class="pad-grid">
+            <button class="sample-pad impact" type="button" data-sample="impact">Impact</button>
+            <button class="sample-pad riser" type="button" data-sample="riser">Riser</button>
+            <button class="sample-pad vocal" type="button" data-sample="vocal">Vocal</button>
+            <button class="sample-pad laser" type="button" data-sample="laser">Laser</button>
+          </div>
+        </section>
+
+        <section class="control-grid">
+          <div class="control-group">
+            <div class="group-title">
+              <h2>节拍循环</h2>
+              <span id="loopStatus">Off</span>
+            </div>
+            <div class="loop-buttons">
+              <button type="button" data-loop="1">1</button>
+              <button type="button" data-loop="2">2</button>
+              <button type="button" data-loop="4">4</button>
+              <button type="button" data-loop="8">8</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="group-title">
+              <h2>唱盘</h2>
+              <span id="jogValue">0%</span>
+            </div>
+            <div id="jogWheel" class="jog-wheel" role="slider" aria-label="唱盘旋转" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+              <div class="jog-marker"></div>
+              <span>JOG</span>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
